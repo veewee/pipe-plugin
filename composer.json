@@ -1,0 +1,23 @@
+{
+    "name": "veewee/pipe-plugin",
+    "autoload": {
+        "files": [
+            "src/pipe.php"
+        ],
+        "psr-4": {
+            "Psl\\Psalm\\": "src/Psalm/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Toon Verwerft",
+            "email": "toonverwerft@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "8.1"
+    },
+    "require-dev": {
+        "vimeo/psalm": "^4.16"
+    }
+}
