@@ -7,7 +7,7 @@ require_once dirname(__DIR__).'/vendor/autoload.php';
 use function Psl\Fun\pipe;
 
 /**
- * @psalm-suppress UnusedClosureParam, UnusedVariable
+ * @psalm-suppress UnusedClosureParam, ForbiddenCode
  */
 function test(): void
 {
@@ -19,4 +19,8 @@ function test(): void
     $res = $stages('hello');
 
     /** @psalm-trace $res, $stages */
+
+    var_dump($res);
 }
+
+test();

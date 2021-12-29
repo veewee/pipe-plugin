@@ -11,13 +11,11 @@ use function Psl\Fun\pipe;
  */
 function test(): void
 {
-    $stages = pipe();
-    $res = $stages('hello');
+    $res = pipe()('hello');
 
-    /** @psalm-trace $res, $stages */
+    /** @psalm-trace $res */
 
     var_dump($res);
-
 }
 
 
