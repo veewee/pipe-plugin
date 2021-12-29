@@ -5,6 +5,12 @@ git clone https://github.com/veewee/pipe-plugin.git
 composer install
 ```
 
+# Where to find what?
+
+- [pipe](https://github.com/veewee/pipe-plugin/blob/main/src/pipe.php)
+- [Plugin](https://github.com/veewee/pipe-plugin/blob/main/src/Psalm/Plugin.php)
+- [Plugin listener](https://github.com/veewee/pipe-plugin/blob/main/src/Psalm/PipeArgumentsProvider.php)
+
 ## Run analysis
 
 ### Empty pipe
