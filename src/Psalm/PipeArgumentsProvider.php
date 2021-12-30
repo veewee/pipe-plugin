@@ -112,6 +112,13 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
                 // Note : `x(...)` results in FuncCall(args: {0: VariadicPlaceholder})
                 // We are currently not able to parse the input and output types for these structures.
 
+                // Other places to analyze:
+                // New_ expression for invokables
+                // Variable for variables that can point to either FunctionLike or New_
+                // ...
+
+                // Haven't found an easy way to get this information from psalm yet.
+
                 $stages[] = [Type::getMixed(), Type::getMixed(), 'input'];
                 continue;
             }
