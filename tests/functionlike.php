@@ -33,7 +33,7 @@ function test(): void
     $stages = pipe(
         $anonymous(...),
         debug(...),
-        fn (int $i): int => $i
+        //fn (int $i): int => $i
     );
     $res = $stages('hello');
 
