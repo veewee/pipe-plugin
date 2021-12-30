@@ -6,6 +6,11 @@ require_once dirname(__DIR__).'/vendor/autoload.php';
 
 use function Psl\Fun\pipe;
 
+/**
+ * @template T
+ * @param T $x
+ * @return T
+ */
 function debug(mixed $x): mixed
 {
     return $x;
@@ -25,10 +30,10 @@ function test(): void
         }
     };
 
-    // This crashes: Uncaught AssertionError: assert(!$this->isFirstClassCallable()) in vendor/nikic/php-parser/lib/PhpParser/Node/Expr/CallLike.php:36
     $stages = pipe(
         $anonymous(...),
-        debug(...) //:
+        debug(...),
+        fn (int $i): int => $i
     );
     $res = $stages('hello');
 

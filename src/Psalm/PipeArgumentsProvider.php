@@ -6,6 +6,7 @@ namespace Psl\Psalm;
 use Closure;
 use PhpParser\Node\Arg;
 use PhpParser\Node\ComplexType;
+use PhpParser\Node\Expr;
 use PhpParser\Node\FunctionLike;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
@@ -75,22 +76,14 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
 
         if (!$stages) {
             //
-            // TODO .. Psalm doesnt grasp the provided template type:
-            //
-            //ERROR: InvalidArgument - ../tests/static-analysis/Fun/pipe.php:20:20 - Argument 1 expects T:fn-psl\fun\pipe as mixed, "hello" provided (see https://psalm.dev/004)
-            //    $res = $stages('hello');
-            //
-            //ERROR: Trace - ../tests/static-analysis/Fun/pipe.php:23:0 - $res: T:fn-psl\fun\pipe as mixed (see https://psalm.dev/224)
-            //    /** @psalm-trace $res */
-            //
-            //
-            // Skipping for now..
+            // @see https://github.com/vimeo/psalm/issues/7244
+            // Currently, templated arguments are not being resolved in closures / callables
+            // For now, we fall back to the built-in types.
 
-            //return null;
+            // $templated = self::createTemplatedType('T', Type::getMixed(), 'fn-'.$event->getFunctionId());
+            // return self::createClosureStage($templated, $templated, 'input');
 
-            $templated = self::createTemplatedType('T', Type::getMixed(), 'fn-'.$event->getFunctionId());
-
-            return self::createClosureStage($templated, $templated, 'input');
+            return null;
         }
 
         $in = self::pipeInputType($stages);
@@ -115,11 +108,18 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
         $stages = [];
         foreach ($args as $arg) {
             $stage = $arg->value;
+
             if (!$stage instanceof FunctionLike) {
-                // Fall back on built-in pipe types: All params must be closures.
-                // Execution is stopped here, since it does not make sense to try to build all possible stages anymore.
-                // The pipe is broken.
-                return null;
+                // The stage could also be an expression instead of a function-like.
+                // This plugin currently only supports function-like statements.
+                // All other input is considered to result in a mixed -> mixed stage
+                // This way we can still recover if types are known in later stages.
+
+                // Note : `x(...)` results in FuncCall(args: {0: VariadicPlaceholder})
+                // We are currently not able to parse the input and output types for these structures.
+
+                $stages[] = [Type::getMixed(), Type::getMixed(), 'input'];
+                continue;
             }
 
             $params = $stage->getParams();
@@ -176,7 +176,7 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
      * If that one is not able to determine the type, this function will fall back on parsing the AST's node type.
      * In case we are not able to determine the type, this function falls back to the $default type.
      */
-    private static function parseTypeFromASTNode(StatementsSource $source, null|ComplexType|Identifier|Name $node, string $default = 'mixed'): Type\Union
+    private static function parseTypeFromASTNode(StatementsSource $source, null|Expr|ComplexType|Identifier|Name $node, string $default = 'mixed'): Type\Union
     {
         if (!$node) {
             return self::createSimpleType($default);
