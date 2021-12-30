@@ -13,23 +13,7 @@ composer install
 
 ## Run analysis
 
-### Empty pipe
-
-This currently results in the issue in which the template parameters are not being replaced by the value provided in the first argument of the `FuncCall`.
-
-```shell
-php tests/empty-pipe.php
-
-./vendor/bin/psalm --no-cache tests/empty-pipe.php
-```
-
-```shell
-php tests/empty-pipe2.php
-
-./vendor/bin/psalm --no-cache tests/empty-pipe2.php
-```
-
-### Other plugin inner-workings
+### Plugin issue detections
 
 The plugin validates if the types inside the stages of the pipe combinator line up.
 It also validates the amount of arguments!
@@ -39,17 +23,30 @@ It also validates the amount of arguments!
 ./vendor/bin/psalm --no-cache tests/argument-issues.php
 ```
 
+### Empty pipe
 
-### TODO:
+See https://github.com/vimeo/psalm/issues/7244
+Currently, templated arguments are not being resolved in closures / callables
+For now, we fall back to the built-in types.
 
-Closures vs callables - PSL issue:
-https://github.com/azjezz/psl/issues/329
+```shell
+php tests/empty-pipe.php
+php tests/empty-pipe2.php
 
-(!) This crashes psalm:
-
+./vendor/bin/psalm --no-cache tests/empty-pipe.php
+./vendor/bin/psalm --no-cache tests/empty-pipe2.php
 ```
-Uncaught AssertionError: assert(!$this->isFirstClassCallable()) in vendor/nikic/php-parser/lib/PhpParser/Node/Expr/CallLike.php:36
-```
+
+### Other structures
+
+#### TODO
+
+These are not yet supported - since it is hard to get this type information from a plugin.
+
+* First-class function callable
+* New_ invokable classes
+* variables pointing to invokables / FunctionLikes
+
 
 ```
 php ./vendor/bin/psalm --no-cache tests/functionlike.php
