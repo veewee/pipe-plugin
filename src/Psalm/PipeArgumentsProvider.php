@@ -10,6 +10,8 @@ use PhpParser\Node\Expr;
 use PhpParser\Node\FunctionLike;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
+use PhpParser\Node\Param;
+use PhpParser\Node\Stmt\Return_;
 use Psalm\CodeLocation;
 use Psalm\Issue\TooFewArguments;
 use Psalm\Issue\TooManyArguments;
@@ -24,11 +26,14 @@ use Psalm\Type;
 
 /**
  * @psalm-type Stage = array{0: Type\Union, 1: Type\Union, 2: string}
- * @psalm-type StagesOrEmpty = list<Stage>|null
+ * @psalm-type StagesOrEmpty = list<Stage>
  * @psalm-type Stages = non-empty-list<Stage>
  */
 class PipeArgumentsProvider implements FunctionParamsProviderInterface, FunctionReturnTypeProviderInterface
 {
+    /**
+     * @return array<lowercase-string>
+     */
     public static function getFunctionIds(): array
     {
         return [
@@ -70,10 +75,6 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
     public static function getFunctionReturnType(FunctionReturnTypeProviderEvent $event): ?Type\Union
     {
         $stages = self::parseStages($event->getStatementsSource(), $event->getCallArgs());
-        if (null === $stages) {
-            return null;
-        }
-
         if (!$stages) {
             //
             // @see https://github.com/vimeo/psalm/issues/7244
@@ -93,18 +94,11 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
     }
 
     /**
-     * @param list<Arg> $args
+     * @param array<array-key, Arg> $args
      * @return StagesOrEmpty
      */
-    private static function parseStages(StatementsSource $source, array $args): ?array
+    private static function parseStages(StatementsSource $source, array $args): array
     {
-        if (!count($args)) {
-            // No pipeline stages is possible: It will work like an identity function.
-            // Let's return an empty array instead of null, so that we can set the return type in a more accurate way.
-            return [];
-        }
-
-
         $stages = [];
         foreach ($args as $arg) {
             $stage = $arg->value;
@@ -123,7 +117,8 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
             }
 
             $params = $stage->getParams();
-            $paramName = $params[0]?->var?->name ?? 'input';
+            $paramName = self::parseNameFromParam($params[0] ?? null);
+
             $in = self::determineValidatedStageInputParam($source, $stage);
             $out = self::parseTypeFromASTNode($source, $stage->getReturnType());
 
@@ -166,7 +161,7 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
             );
         }
 
-        $type = $params ? $params[0]?->type : null;
+        $type = $params ? $params[0]->type : null;
 
         return self::parseTypeFromASTNode($source, $type);
     }
@@ -176,17 +171,37 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
      * If that one is not able to determine the type, this function will fall back on parsing the AST's node type.
      * In case we are not able to determine the type, this function falls back to the $default type.
      */
-    private static function parseTypeFromASTNode(StatementsSource $source, null|Expr|ComplexType|Identifier|Name $node, string $default = 'mixed'): Type\Union
+    private static function parseTypeFromASTNode(StatementsSource $source, null|Expr|ComplexType|Identifier|Name|Return_ $node, string $default = 'mixed'): Type\Union
     {
-        if (!$node) {
+        if (!$node || $node instanceof ComplexType) {
             return self::createSimpleType($default);
         }
 
-        $nodeTypeProvider = $source->getNodeTypeProvider();
-        $nodeType = $nodeTypeProvider->getType($node);
-        $nodeType ??= self::createSimpleType($node->toString() ?: $default);
+        $nodeType = null;
+        if ($node instanceof Expr || $node instanceof Name || $node instanceof Return_) {
+            $nodeTypeProvider = $source->getNodeTypeProvider();
+            $nodeType = $nodeTypeProvider->getType($node);
+        }
 
-        return $nodeType;
+        if (!$nodeType && ($node instanceof Name || $node instanceof Identifier)) {
+            $nodeType = self::createSimpleType($node->toString() ?: $default);
+        }
+
+        return $nodeType ?? self::createSimpleType($default);
+    }
+
+    private static function parseNameFromParam(?Param $param, string $default = 'input'): string
+    {
+        if (!$param) {
+            return $default;
+        }
+
+        $var = $param->var;
+        if (!$var instanceof Expr\Variable) {
+            return $default;
+        }
+
+        return is_string($var->name) ? $var->name : $default;
     }
 
     /**
@@ -247,5 +262,4 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
             new Type\Atomic\TTemplateParam($name, $baseType, $definingClass)
         ]);
     }
-
 }
