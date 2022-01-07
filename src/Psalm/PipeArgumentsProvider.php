@@ -104,6 +104,8 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
             $stage = $arg->value;
 
             if (!$stage instanceof FunctionLike) {
+
+
                 // The stage could also be an expression instead of a function-like.
                 // This plugin currently only supports function-like statements.
                 // All other input is considered to result in a mixed -> mixed stage
@@ -153,7 +155,8 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
                 new TooFewArguments(
                     'Pipe stage functions require exactly one input parameter, none given. This will ignore the input value.',
                     new CodeLocation($source, $stage)
-                )
+                ),
+                $source->getSuppressedIssues()
             );
         }
 
@@ -164,7 +167,8 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
                 new TooManyArguments(
                     'Pipe stage functions can only deal with one input parameter.',
                     new CodeLocation($source, $params[1])
-                )
+                ),
+                $source->getSuppressedIssues()
             );
         }
 
