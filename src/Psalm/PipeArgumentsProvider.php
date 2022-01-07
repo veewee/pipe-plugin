@@ -111,15 +111,15 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
                 // All other input is considered to result in a mixed -> mixed stage
                 // This way we can still recover if types are known in later stages.
 
-                // Note : `x(...)` results in FuncCall(args: {0: VariadicPlaceholder})
-                // We are currently not able to parse the input and output types for these structures.
+                // Expressions currently not covered:
 
-                // Other places to analyze:
                 // New_ expression for invokables
                 // Variable for variables that can point to either FunctionLike or New_
+                // Assignments during a pipe level: $x = fn () => 123
+                // `x(...)` results in FuncCall(args: {0: VariadicPlaceholder})
                 // ...
 
-                // Haven't found an easy way to get this information from psalm yet.
+                // Haven't found a way to get the resulting type of an expression in psalm yet.
 
                 $stages[] = [Type::getMixed(), Type::getMixed(), 'input'];
                 continue;
