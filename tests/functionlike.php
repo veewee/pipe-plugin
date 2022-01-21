@@ -31,8 +31,8 @@ function test(): void
     };
 
     $stages = pipe(
-        $anonymous(...),
-        debug(...),
+        $x = $anonymous(...),
+        $z = debug(...)
         //fn (int $i): int => $i
     );
     $res = $stages('hello');

@@ -18,6 +18,12 @@
         "php": "8.1"
     },
     "require-dev": {
-        "vimeo/psalm": "dev-master"
-    }
+        "vimeo/psalm": "dev-function-params-provider-improvements"
+    },
+    "repositories": [
+        {
+            "type": "git",
+            "url": "https://github.com/veewee/psalm"
+        }
+    ]
 }

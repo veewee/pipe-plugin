@@ -37,16 +37,7 @@ php tests/empty-pipe2.php
 ./vendor/bin/psalm --no-cache tests/empty-pipe2.php
 ```
 
-### Other structures
-
-#### TODO
-
-These are not yet supported - since it is hard to get this type information from a plugin.
-
-* First-class function callable
-* New_ invokable classes
-* variables pointing to invokables / FunctionLikes
-
+### Other function-likes:
 
 ```
 php ./vendor/bin/psalm --no-cache tests/functionlike.php

@@ -4,14 +4,9 @@ declare(strict_types=1);
 namespace Psl\Psalm;
 
 use Closure;
+use PhpParser\Node;
 use PhpParser\Node\Arg;
-use PhpParser\Node\ComplexType;
-use PhpParser\Node\Expr;
 use PhpParser\Node\FunctionLike;
-use PhpParser\Node\Identifier;
-use PhpParser\Node\Name;
-use PhpParser\Node\Param;
-use PhpParser\Node\Stmt\Return_;
 use Psalm\CodeLocation;
 use Psalm\Issue\TooFewArguments;
 use Psalm\Issue\TooManyArguments;
@@ -23,6 +18,7 @@ use Psalm\Plugin\EventHandler\FunctionReturnTypeProviderInterface;
 use Psalm\StatementsSource;
 use Psalm\Storage\FunctionLikeParameter;
 use Psalm\Type;
+use Psalm\Type\Atomic\TClosure;
 
 /**
  * @psalm-type Stage = array{0: Type\Union, 1: Type\Union, 2: string}
@@ -81,8 +77,8 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
             // Currently, templated arguments are not being resolved in closures / callables
             // For now, we fall back to the built-in types.
 
-            // $templated = self::createTemplatedType('T', Type::getMixed(), 'fn-'.$event->getFunctionId());
-            // return self::createClosureStage($templated, $templated, 'input');
+//            $templated = self::createTemplatedType('T', Type::getMixed(), 'fn-'.$event->getFunctionId());
+//            return self::createClosureStage($templated, $templated, 'input');
 
             return null;
         }
@@ -103,33 +99,19 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
         foreach ($args as $arg) {
             $stage = $arg->value;
 
-            if (!$stage instanceof FunctionLike) {
-
-
-                // The stage could also be an expression instead of a function-like.
-                // This plugin currently only supports function-like statements.
-                // All other input is considered to result in a mixed -> mixed stage
-                // This way we can still recover if types are known in later stages.
-
-                // Expressions currently not covered:
-
-                // New_ expression for invokables
-                // Variable for variables that can point to either FunctionLike or New_
-                // Assignments during a pipe level: $x = fn () => 123
-                // `x(...)` results in FuncCall(args: {0: VariadicPlaceholder})
-                // ...
-
-                // Haven't found a way to get the resulting type of an expression in psalm yet.
-
+            $nodeTypeProvider = $source->getNodeTypeProvider();
+            $stageType = $nodeTypeProvider->getType($stage)?->getSingleAtomic();
+            if (!$stageType instanceof TClosure) {
                 $stages[] = [Type::getMixed(), Type::getMixed(), 'input'];
                 continue;
             }
 
-            $params = $stage->getParams();
-            $paramName = self::parseNameFromParam($params[0] ?? null);
+            $params = $stageType->params;
+            $firstParam = reset($params);
 
-            $in = self::determineValidatedStageInputParam($source, $stage);
-            $out = self::parseTypeFromASTNode($source, $stage->getReturnType());
+            $paramName = $firstParam->name ?? 'input';
+            $in = self::determineValidatedStageInputParam($source, $stage, $stageType);
+            $out = $stageType->return_type ?? Type::getMixed();
 
             $stages[] = [$in, $out, $paramName];
         }
@@ -146,9 +128,9 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
      *
      * In both situations, we can continue building up the stages so that the user has as much analyzer info as possible.
      */
-    private static function determineValidatedStageInputParam(StatementsSource $source, FunctionLike $stage): Type\Union
+    private static function determineValidatedStageInputParam(StatementsSource $source, Node $stage, TClosure $stageType): Type\Union
     {
-        $params = $stage->getParams();
+        $params = $stageType->params ?? [];
 
         if (count($params) === 0) {
             IssueBuffer::maybeAdd(
@@ -162,57 +144,17 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
 
         // The pipe function will crash during runtime when there are more than 1 function parameters required.
         // We can still determine the stages Input / Output types at this point.
-        if (count($params) > 1 && !($params[1] ?? null)?->default) {
+        if (count($params) > 1 && !$params[1]->is_optional) {
             IssueBuffer::maybeAdd(
                 new TooManyArguments(
                     'Pipe stage functions can only deal with one input parameter.',
-                    new CodeLocation($source, $params[1])
+                    new CodeLocation($source, $stage instanceof FunctionLike ? $stage->getParams()[0] : $stage)
                 ),
                 $source->getSuppressedIssues()
             );
         }
 
-        $type = $params ? $params[0]->type : null;
-
-        return self::parseTypeFromASTNode($source, $type);
-    }
-
-    /**
-     * This function tries parsing the node type based on psalm's NodeTypeProvider.
-     * If that one is not able to determine the type, this function will fall back on parsing the AST's node type.
-     * In case we are not able to determine the type, this function falls back to the $default type.
-     */
-    private static function parseTypeFromASTNode(StatementsSource $source, null|Expr|ComplexType|Identifier|Name|Return_ $node, string $default = 'mixed'): Type\Union
-    {
-        if (!$node || $node instanceof ComplexType) {
-            return self::createSimpleType($default);
-        }
-
-        $nodeType = null;
-        if ($node instanceof Expr || $node instanceof Name || $node instanceof Return_) {
-            $nodeTypeProvider = $source->getNodeTypeProvider();
-            $nodeType = $nodeTypeProvider->getType($node);
-        }
-
-        if (!$nodeType && ($node instanceof Name || $node instanceof Identifier)) {
-            $nodeType = self::createSimpleType($node->toString() ?: $default);
-        }
-
-        return $nodeType ?? self::createSimpleType($default);
-    }
-
-    private static function parseNameFromParam(?Param $param, string $default = 'input'): string
-    {
-        if (!$param) {
-            return $default;
-        }
-
-        $var = $param->var;
-        if (!$var instanceof Expr\Variable) {
-            return $default;
-        }
-
-        return is_string($var->name) ? $var->name : $default;
+        return $params[0]->type ?? Type::getMixed();
     }
 
     /**
@@ -260,11 +202,6 @@ class PipeArgumentsProvider implements FunctionParamsProviderInterface, Function
             is_nullable: false,
             is_variadic: false,
         );
-    }
-
-    private static function createSimpleType(string $type): Type\Union
-    {
-        return new Type\Union([Type\Atomic::create($type)]);
     }
 
     private static function createTemplatedType(string $name, Type\Union $baseType, string $definingClass): Type\Union
